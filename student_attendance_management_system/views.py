@@ -1,87 +1,110 @@
 from rest_framework import status
+from rest_framework.generics import ListCreateAPIView, GenericAPIView
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
-from .serializers import (
-    UserRegistrationSerializer,
-    UserLoginSerializer,
-    UserListSerializer
-)
-
-from .models import User
+from .models import Course
+from .serializers import AdminCourseSerializer, TeacherCourseSerializer, StudentCourseSerializer, AttendanceSerializer
 
 
-class UserRegistrationView(APIView):
-    serializer_class = UserRegistrationSerializer
-    permission_classes = (AllowAny,)
-
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data)
-        valid = serializer.is_valid(raise_exception=True)
-
-        if valid:
-            serializer.save()
-            status_code = status.HTTP_201_CREATED
-
-            response = {
-                'success': True,
-                'statusCode': status_code,
-                'message': 'User successfully registered!',
-                'user': serializer.data
-            }
-
-            return Response(response, status=status_code)
-
-
-class UserLoginView(APIView):
-    serializer_class = UserLoginSerializer
-    permission_classes = (AllowAny,)
-
-    def post(self, request):
-        serializer = self.serializer_class(data=request.data)
-        valid = serializer.is_valid(raise_exception=True)
-
-        if valid:
-            status_code = status.HTTP_200_OK
-
-            response = {
-                'success': True,
-                'statusCode': status_code,
-                'message': 'User logged in successfully',
-                # 'access': serializer.data['access'],
-                # 'refresh': serializer.data['refresh'],
-                'authenticatedUser': {
-                    'email': serializer.data['email'],
-                    'role': serializer.data['role']
-                }
-            }
-
-            return Response(response, status=status_code)
-
-
-class UserListView(APIView):
-    serializer_class = UserListSerializer
+class CourseListView(GenericAPIView):
     permission_classes = (IsAuthenticated,)
 
     def get(self, request):
         user = request.user
-        if user.role != 1:
+        if user.role == 1:
+            courses = Course.objects.all()
+            serializer = self.get_serializer_class()
+            serializer = serializer(courses, many=True)
+            response = {
+                'success': True,
+                'status_code': status.HTTP_200_OK,
+                'message': 'Successfully fetched courses',
+                'courses': serializer.data
+            }
+            return Response(response, status=status.HTTP_200_OK)
+
+        elif user.role == 2:
+            teachers_courses = Course.objects.all().filter(teacher=user.id)
+            serializer = self.get_serializer_class()
+            serializer = serializer(teachers_courses, many=True)
+            response = {
+                'success': True,
+                'status_code': status.HTTP_200_OK,
+                'message': 'Successfully fetched courses',
+                'courses': serializer.data
+            }
+            return Response(response, status=status.HTTP_200_OK)
+        elif user.role == 3:
+            student_courses = Course.objects.filter(students=user.id)
+            serializer = self.get_serializer_class()
+            serializer = serializer(student_courses, many=True)
+            response = {
+                'success': True,
+                'status_code': status.HTTP_200_OK,
+                'message': 'Successfully fetched courses',
+                'courses': serializer.data
+            }
+            return Response(response, status=status.HTTP_200_OK)
+        else:
             response = {
                 'success': False,
                 'status_code': status.HTTP_403_FORBIDDEN,
                 'message': 'You are not authorized to perform this action'
             }
             return Response(response, status.HTTP_403_FORBIDDEN)
+
+    def post(self, request):
+        user = request.user
+        if user.role == 1:
+            serializer = self.serializer_class(data=request.data)
+            valid = serializer.is_valid(raise_exception=True)
+            if valid:
+                status_code = status.HTTP_200_OK
+                data = serializer.validated_data
+                course = Course.objects.create(**data)
+                response = {
+                    'success': True,
+                    'statusCode': status_code,
+                    'message': 'Course added successfully'
+                }
+
+                return Response(response, status=status_code)
         else:
-            users = User.objects.all()
-            serializer = self.serializer_class(users, many=True)
+            return None
+
+    def get_serializer_class(self):
+        user = self.request.user
+        if user.role == 1:
+            return AdminCourseSerializer
+        elif user.role == 2:
+            return TeacherCourseSerializer
+        elif user.role == 3:
+            return StudentCourseSerializer
+
+
+class AttendanceView(GenericAPIView):
+    serializer_class = AttendanceSerializer
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 2:
+            serializer = self.serializer_class(data=request.data)
+            valid = serializer.is_valid(raise_exception=True)
+            if valid:
+                status_code = status.HTTP_201_CREATED
+                response = {
+                    'success': True,
+                    'statusCode': status_code,
+                    'message': 'Attendance saved successfully',
+                }
+                return Response(response, status=status_code)
+
+        else:
             response = {
-                'success': True,
-                'status_code': status.HTTP_200_OK,
-                'message': 'Successfully fetched users',
-                'users': serializer.data
+                'success': False,
+                'status_code': status.HTTP_403_FORBIDDEN,
+                'message': 'You are not authorized to perform this action'
             }
-            return Response(response, status=status.HTTP_200_OK)
-
-
+            return Response(response, status.HTTP_403_FORBIDDEN)

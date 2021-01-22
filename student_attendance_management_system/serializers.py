@@ -1,57 +1,76 @@
 from rest_framework import serializers
-from django.contrib.auth import authenticate
 
-from .models import User
+from users.models import User
+from .models import Course, Attendance, AttendanceReport
 
 
-class UserRegistrationSerializer(serializers.ModelSerializer):
+class CourseUserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = (
+            'id',
+            'first_name',
+            'last_name',
             'email',
-            'password',
         )
 
-    def create(self, validated_data):
-        auth_user = User.objects.create_user(**validated_data)
-        return auth_user
 
-
-class UserLoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(max_length=128, write_only=True)
-    role = serializers.CharField(read_only=True)
-
-    def create(self, validated_date):
-        pass
+class AdminCourseSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=30)
+    course_students = serializers.SerializerMethodField()
 
     def update(self, instance, validated_data):
         pass
 
-    def validate(self, data):
-        email = data['email']
-        password = data['password']
-        user = authenticate(email=email, password=password)
+    def create(self, validated_data):
+        pass
 
-        if user is None:
-            raise serializers.ValidationError("Invalid login credentials")
-
-        try:
-
-            validation = {
-                'email': user.email,
-                'role': user.role,
-            }
-
-            return validation
-        except User.DoesNotExist:
-            raise serializers.ValidationError("Invalid login credentials")
-
-
-class UserListSerializer(serializers.ModelSerializer):
     class Meta:
-        model = User
+        model = Course
         fields = (
-            'email',
-            'role'
+            'name',
+            'teacher',
+            'course_students',
+            'students'
         )
+        extra_kwargs = {
+            'students': {'write_only': True},
+        }
+
+    def get_course_students(self, obj):
+        query_set = obj.students
+        return CourseUserSerializer(query_set, many=True).data
+
+
+class TeacherCourseSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=30, read_only=True)
+    course_students = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Course
+        fields = (
+            'name',
+            'course_students'
+        )
+
+    def get_course_students(self, obj):
+        query_set = obj.students
+        return CourseUserSerializer(query_set, many=True).data
+
+
+class StudentCourseSerializer(serializers.ModelSerializer):
+    name = serializers.CharField(max_length=30, read_only=True)
+
+    class Meta:
+        model = Course
+        fields = (
+            'name',
+        )
+
+
+class AttendanceSerializer(serializers.ModelSerializer):
+    report = serializers.PrimaryKeyRelatedField(queryset=AttendanceReport.objects.all())
+
+    class Meta:
+        model = Attendance
+        fields = ('date', 'course', 'report')
