@@ -1,10 +1,6 @@
 from django.contrib import admin
 
-
 from .models import Course, Attendance, AttendanceReport
-
-
-
 
 
 @admin.register(Course)
@@ -14,9 +10,9 @@ class CourseAdmin(admin.ModelAdmin):
 
 @admin.register(Attendance)
 class AttendanceAdmin(admin.ModelAdmin):
-    pass
+    list_display = ('course', 'date')
 
 
 @admin.register(AttendanceReport)
 class AttendanceReportAdmin(admin.ModelAdmin):
-    pass
+    list_display = ('attendance', 'student', 'status')

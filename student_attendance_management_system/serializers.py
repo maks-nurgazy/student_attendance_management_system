@@ -68,9 +68,61 @@ class StudentCourseSerializer(serializers.ModelSerializer):
         )
 
 
+class AttendanceReportSerializer(serializers.ModelSerializer):
+    report_id = serializers.SerializerMethodField()
+    student = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = AttendanceReport
+        fields = (
+            'report_id',
+            'student',
+            'status',
+        )
+
+    def get_report_id(self, obj):
+        return obj.id
+
+    def get_student(self, obj):
+        query_set = obj.student
+        return CourseUserSerializer(query_set).data
+
+    def get_status(self, obj):
+        if obj.status:
+            return "Present"
+        else:
+            return "Absent"
+
+
 class AttendanceSerializer(serializers.ModelSerializer):
-    report = serializers.PrimaryKeyRelatedField(queryset=AttendanceReport.objects.all())
+    reports = AttendanceReportSerializer(many=True)
+    course = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
-        fields = ('date', 'course', 'report')
+        fields = (
+            'date',
+            'course',
+            'reports'
+        )
+
+    # def get_attendance_report(self, obj):
+    #     query_set = obj.reports
+    #     return AttendanceReportSerializer(query_set, many=True).data
+
+    def get_course(self, obj):
+        return obj.course.name
+
+
+class AttendancePostSerializer(serializers.ModelSerializer):
+    course = serializers.CharField(max_length=30)
+    reports = AttendanceReportSerializer(many=True)
+
+    class Meta:
+        model = Attendance
+        fields = (
+            'date',
+            'course',
+            'reports'
+        )
