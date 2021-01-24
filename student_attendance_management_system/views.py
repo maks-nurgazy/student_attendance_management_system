@@ -1,14 +1,18 @@
+from django.contrib.auth import get_user_model
 from rest_framework import status
 from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Course
+from .models import Course, Attendance
 from .serializers import (
     AdminCourseSerializer,
     TeacherCourseSerializer,
     StudentCourseSerializer,
-    AttendanceSerializer, AttendancePostSerializer)
+    AttendanceSerializer,
+    AttendancePostSerializer)
+
+User = get_user_model()
 
 
 class CourseListView(GenericAPIView):
@@ -61,21 +65,42 @@ class CourseListView(GenericAPIView):
     def post(self, request):
         user = request.user
         if user.role == 1:
-            serializer = self.serializer_class(data=request.data)
+            serializer = self.get_serializer_class()
+            data = request.data
+            if request.content_type != 'application/json':
+                response = {
+                    'success': False,
+                    'statusCode': status.HTTP_400_BAD_REQUEST,
+                    'message': 'Content type must be application/json'
+                }
+                return Response(response, status=status.HTTP_400_BAD_REQUEST)
+            serializer = serializer(data=data)
             valid = serializer.is_valid(raise_exception=True)
             if valid:
                 status_code = status.HTTP_200_OK
-                data = serializer.validated_data
-                course = Course.objects.create(**data)
+                course = serializer.save()
                 response = {
                     'success': True,
                     'statusCode': status_code,
                     'message': 'Course added successfully'
                 }
-
+                return Response(response, status=status_code)
+            else:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = {
+                    'success': False,
+                    'statusCode': status_code,
+                    'message': 'Error while serializing'
+                }
                 return Response(response, status=status_code)
         else:
-            return None
+            status_code = status.HTTP_403_FORBIDDEN
+            response = {
+                'success': False,
+                'statusCode': status_code,
+                'message': 'Access denied'
+            }
+            return Response(response, status=status_code)
 
     def get_serializer_class(self):
         user = self.request.user
@@ -85,6 +110,23 @@ class CourseListView(GenericAPIView):
             return TeacherCourseSerializer
         elif user.role == 3:
             return StudentCourseSerializer
+
+
+class TeachersCourseListView(GenericAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = TeacherCourseSerializer
+
+    def get(self, request, teacher_id):
+        teachers_courses = Course.objects.all().filter(teacher=teacher_id)
+        serializer = self.get_serializer_class()
+        serializer = serializer(teachers_courses, many=True)
+        response = {
+            'success': True,
+            'status_code': status.HTTP_200_OK,
+            'message': 'Successfully fetched courses',
+            'courses': serializer.data
+        }
+        return Response(response, status=status.HTTP_200_OK)
 
 
 class AttendanceView(GenericAPIView):
@@ -101,9 +143,10 @@ class AttendanceView(GenericAPIView):
             }
             return Response(response, status.HTTP_403_FORBIDDEN)
 
-        if user.role == 2:
+        if user.role == 2 or user.role == 1:
             course_in_url = kwargs['course']
-            attendances = Course.objects.get(name=course_in_url).attendances
+            course = Course.objects.get(name=course_in_url)
+            attendances = course.attendances
             serializer = self.get_serializer_class()
             serializer = serializer(attendances, many=True)
             status_code = status.HTTP_200_OK
@@ -122,23 +165,29 @@ class AttendanceView(GenericAPIView):
             }
             return Response(response, status.HTTP_403_FORBIDDEN)
 
-    def post(self, request):
+    def post(self, request, course):
         user = request.user
-        if user.role == 2:
-            serializer = self.serializer_class(data=request.data)
+        if user.role == 1 or user.role == 2:
+            serializer = self.get_serializer_class()
+            serializer = serializer(data=request.data)
             valid = serializer.is_valid(raise_exception=True)
             if valid:
                 status_code = status.HTTP_200_OK
-                data = serializer.validated_data
+                serializer.save()
                 response = {
                     'success': True,
                     'statusCode': status_code,
                     'message': 'Attendance saved successfully'
                 }
-
                 return Response(response, status=status_code)
         else:
-            return None
+            status_code = status.HTTP_200_OK
+            response = {
+                'success': False,
+                'statusCode': status_code,
+                'message': 'You must be an admin user'
+            }
+            return Response(response, status=status_code)
 
     def get_serializer_class(self):
         if self.request.method == "GET":
@@ -146,3 +195,44 @@ class AttendanceView(GenericAPIView):
 
         elif self.request.method == "POST":
             return AttendancePostSerializer
+
+
+class AttendanceDetailView(GenericAPIView):
+    serializer_class = AttendancePostSerializer
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 1 or user.role == 2:
+            attendance_id = kwargs['attendance_id']
+            attendance = Attendance.objects.get(id=attendance_id)
+            serializer = self.serializer_class(attendance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+    def put(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 1 or user.role == 2:
+            attendance_id = kwargs['attendance_id']
+            attendance = Attendance.objects.get(id=attendance_id)
+            serializer = self.serializer_class(attendance, data=request.data)
+            valid = serializer.is_valid(raise_exception=True)
+            if valid:
+                serializer.save()
+                status_code = status.HTTP_200_OK
+                response = {
+                    'success': True,
+                    'statusCode': status_code,
+                    'message': 'Attendance updated successfully'
+                }
+                return Response(response, status=status_code)
+
+    def delete(self, request, *args, **kwargs):
+        attendance_id = kwargs['attendance_id']
+        attendance = Attendance.objects.get(id=attendance_id)
+        attendance.delete()
+        status_code = status.HTTP_200_OK
+        response = {
+            'success': True,
+            'statusCode': status_code,
+            'message': 'Attendance deleted successfully'
+        }
+        return Response(response, status=status_code)

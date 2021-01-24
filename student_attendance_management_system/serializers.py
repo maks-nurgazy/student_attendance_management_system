@@ -5,6 +5,15 @@ from .models import Course, Attendance, AttendanceReport
 
 
 class CourseUserSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField()
+    email = serializers.EmailField()
+
+    def update(self, instance, validated_data):
+        pass
+
+    def create(self, validated_data):
+        pass
+
     class Meta:
         model = User
         fields = (
@@ -16,30 +25,28 @@ class CourseUserSerializer(serializers.ModelSerializer):
 
 
 class AdminCourseSerializer(serializers.ModelSerializer):
-    name = serializers.CharField(max_length=30)
-    course_students = serializers.SerializerMethodField()
+    students = CourseUserSerializer(many=True)
 
     def update(self, instance, validated_data):
         pass
 
     def create(self, validated_data):
-        pass
+        student_list = validated_data.pop('students')
+        teacher_id = validated_data.pop('teacher')
+        course = Course.objects.create(**validated_data, teacher=teacher_id)
+        for student in student_list:
+            student_id = student['id']
+            course.students.add(student_id)
+        return course
 
     class Meta:
         model = Course
         fields = (
+            'id',
             'name',
             'teacher',
-            'course_students',
             'students'
         )
-        extra_kwargs = {
-            'students': {'write_only': True},
-        }
-
-    def get_course_students(self, obj):
-        query_set = obj.students
-        return CourseUserSerializer(query_set, many=True).data
 
 
 class TeacherCourseSerializer(serializers.ModelSerializer):
@@ -49,6 +56,7 @@ class TeacherCourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = (
+            'id',
             'name',
             'course_students'
         )
@@ -97,31 +105,82 @@ class AttendanceReportSerializer(serializers.ModelSerializer):
 
 class AttendanceSerializer(serializers.ModelSerializer):
     reports = AttendanceReportSerializer(many=True)
+    teacher = serializers.SerializerMethodField()
     course = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
         fields = (
+            'id',
             'date',
             'course',
+            'teacher',
             'reports'
         )
-
-    # def get_attendance_report(self, obj):
-    #     query_set = obj.reports
-    #     return AttendanceReportSerializer(query_set, many=True).data
 
     def get_course(self, obj):
         return obj.course.name
 
+    def get_teacher(self, obj):
+        teacher = obj.course.teacher
+        return f'{teacher.first_name} {teacher.email}'
+
+
+class StrictBooleanField(serializers.BooleanField):
+    def to_internal_value(self, value):
+        if value in ('true', 'Present', 'True', '1'):
+            return True
+        if value in ('false', 'Absent', 'False', '0'):
+            return False
+        self.fail('invalid', input=None)
+
+    def to_representation(self, value):
+        if value:
+            return "Present"
+        return "Absent"
+
+
+class AttendanceReportPostSerializer(serializers.Serializer):
+    student_id = serializers.CharField(max_length=30)
+    status = StrictBooleanField(required=True)
+
+    def update(self, instance, validated_data):
+        instance.status = validated_data.get('status', instance.status)
+        return instance
+
+    def create(self, validated_data):
+        pass
+
 
 class AttendancePostSerializer(serializers.ModelSerializer):
-    course = serializers.CharField(max_length=30)
-    reports = AttendanceReportSerializer(many=True)
+    reports = AttendanceReportPostSerializer(many=True)
+    course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())
+
+    def update(self, instance, validated_data):
+        reports_data = validated_data.pop('reports')
+        reports = instance.reports.all()
+        reports = list(reports)
+        instance.date = validated_data.get('date', instance.date)
+        instance.course = validated_data.get('course', instance.course)
+        instance.save()
+        for report_data in reports_data:
+            report = reports.pop(0)
+            report.status = report_data.get('status', report.status)
+            report.save()
+        return instance
+
+    def create(self, validated_data):
+        report_list = validated_data.pop('reports')
+        attendance = Attendance.objects.create(**validated_data)
+        for student in report_list:
+            student_obj = User.objects.get(id=student['student_id'])
+            AttendanceReport.objects.create(attendance=attendance, student=student_obj, status=student['status'])
+        return attendance
 
     class Meta:
         model = Attendance
         fields = (
+            'id',
             'date',
             'course',
             'reports'

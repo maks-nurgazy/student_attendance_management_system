@@ -35,7 +35,7 @@ class Attendance(models.Model):
 
 class AttendanceReport(models.Model):
     attendance = models.ForeignKey(Attendance, on_delete=models.CASCADE, related_name='reports')
-    student = models.ForeignKey(User, on_delete=models.DO_NOTHING)
+    student = models.ForeignKey(User, on_delete=models.CASCADE)
     status = models.BooleanField(default=False)
 
     def __str__(self):
