@@ -1,19 +1,22 @@
 from django.shortcuts import render
 from rest_framework import status
+from rest_framework.generics import GenericAPIView
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework_simplejwt.tokens import RefreshToken
 
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
-    UserListSerializer,
+    UserListSerializer
 )
 
 from .models import User
 
 
-class UserRegistrationView(APIView):
+class UserRegistrationView(GenericAPIView):
+    """ User registration url """
     serializer_class = UserRegistrationSerializer
     permission_classes = (AllowAny,)
 
@@ -35,7 +38,8 @@ class UserRegistrationView(APIView):
             return Response(response, status=status_code)
 
 
-class UserLoginView(APIView):
+class UserLoginView(GenericAPIView):
+    """ User login url """
     serializer_class = UserLoginSerializer
     permission_classes = (AllowAny,)
 
@@ -60,7 +64,22 @@ class UserLoginView(APIView):
             return Response(response, status=status_code)
 
 
-class UserListView(APIView):
+class UserLogoutView(GenericAPIView):
+    """ Do POST request with request data attribute set to refresh_token="token" """
+    permission_classes = (IsAuthenticated,)
+
+    def post(self, request):
+        try:
+            refresh_token = request.data["refresh_token"]
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+
+            return Response(status=status.HTTP_205_RESET_CONTENT)
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserListView(GenericAPIView):
     serializer_class = UserListSerializer
     permission_classes = (IsAuthenticated,)
 

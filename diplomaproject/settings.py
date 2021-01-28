@@ -41,8 +41,10 @@ INSTALLED_APPS = [
 
     'channels',
     'rest_framework',
+    'rest_framework_simplejwt.token_blacklist',
     'users',
-    'student_attendance_management_system'
+    'student_attendance_management_system',
+    'drf_yasg',
 
 ]
 
@@ -160,5 +162,18 @@ CHANNEL_LAYERS = {
         'CONFIG': {
             "hosts": [('127.0.0.1', 6379)],
         },
+    },
+}
+
+SWAGGER_SETTINGS = {
+    'SECURITY_DEFINITIONS': {
+        'Auth Token eg [JWT]': {
+            'type': 'apiKey',
+            'name': 'Authorization',
+            'in': 'header'
+        },
+        'basic': {
+            'type': 'basic'
+        }
     },
 }
