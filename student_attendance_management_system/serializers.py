@@ -131,9 +131,11 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
 
 class CourseDetailSerializer(serializers.ModelSerializer):
+    students = CourseStudentSerializer(many=True, read_only=True)
+
     class Meta:
         model = Course
-        fields = ('name','teacher')
+        fields = ('name', 'teacher', 'students')
 
 
 class StrictBooleanField(serializers.BooleanField):

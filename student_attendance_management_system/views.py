@@ -124,7 +124,7 @@ class CourseDetailView(RetrieveUpdateDestroyAPIView, APIException):
     permission_classes = [IsAdminUser]
 
     def get_object(self):
-        filter_kwargs = self.kwargs['id']
+        filter_kwargs = self.kwargs['course_id']
         try:
             obj = Course.objects.get(id=filter_kwargs)
         except ObjectDoesNotExist:
@@ -166,7 +166,7 @@ class AttendanceView(GenericAPIView):
             return Response(response, status.HTTP_403_FORBIDDEN)
 
         if user.role == 2 or user.role == 1:
-            course_in_url = kwargs['course']
+            course_in_url = kwargs['course_name']
             course = Course.objects.get(name=course_in_url)
             attendances = course.attendances
             serializer = self.get_serializer_class()
