@@ -16,7 +16,7 @@ def get_status_in_string(status):
 
 
 class Course(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)
     students = models.ManyToManyField(User, blank=True, related_name='student_courses')
     teacher = models.ForeignKey(User, on_delete=models.DO_NOTHING, related_name='teacher_courses', null=True,
                                 blank=True)

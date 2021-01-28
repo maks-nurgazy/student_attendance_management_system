@@ -5,14 +5,15 @@ from .models import Course, Attendance, AttendanceReport
 
 
 class CourseStudentSerializer(serializers.ModelSerializer):
-    id = serializers.IntegerField()
+    id = serializers.IntegerField(required=False)
+    password = serializers.CharField(max_length=128, write_only=True)
     email = serializers.EmailField()
 
     def update(self, instance, validated_data):
         pass
 
     def create(self, validated_data):
-        pass
+        return User.objects.create_student(**validated_data)
 
     class Meta:
         model = User
@@ -21,24 +22,53 @@ class CourseStudentSerializer(serializers.ModelSerializer):
             'first_name',
             'last_name',
             'email',
+            'password'
         )
+
+    def validate(self, data):
+        email = data.get("email", None)
+        ModelClass = self.Meta.model
+        id = data.get("id", None)
+
+        if not id and ModelClass.objects.filter(email=email).exists():
+            raise serializers.ValidationError("Email already exists")
+
+        return data
 
 
 class AdminCourseSerializer(serializers.ModelSerializer):
     course_id = serializers.SerializerMethodField('get_course_id')
-    students = CourseStudentSerializer(many=True)
+    students = CourseStudentSerializer(many=True, required=False)
 
     def update(self, instance, validated_data):
         pass
 
     def create(self, validated_data):
-        student_list = validated_data.pop('students')
-        teacher_id = validated_data.pop('teacher')
-        course = Course.objects.create(**validated_data, teacher=teacher_id)
-        for student in student_list:
-            student_id = student['id']
-            course.students.add(student_id)
-        return course
+        student_list = validated_data.pop('students', None)
+        teacher_id = validated_data.pop('teacher', None)
+        if (student_list is not None) and (teacher_id is not None):
+            course = Course.objects.create(**validated_data, teacher=teacher_id)
+            self.add_subject_student(student_list=student_list, course=course)
+        elif (student_list is None) and (teacher_id is not None):
+            course = Course.objects.create(**validated_data, teacher=teacher_id)
+        elif (student_list is not None) and (teacher_id is None):
+            course = Course.objects.create(**validated_data)
+            self.add_subject_student(student_list=student_list, course=course)
+        else:
+            course = Course.objects.create(**validated_data)
+        return Course.objects.get(id=course.id)
+
+    def add_subject_student(self, student_list, course):
+        for student_obj in student_list:
+            try:
+                student_id = student_obj['id']
+                course.students.add(student_id)
+            except KeyError:
+                serializer = CourseStudentSerializer(data=student_obj)
+                valid = serializer.is_valid(raise_exception=True)
+                if valid:
+                    student_email = serializer.save()
+                    course.students.add(student_email)
 
     class Meta:
         model = Course

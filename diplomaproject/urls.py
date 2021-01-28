@@ -15,10 +15,11 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
-
-from rest_framework import permissions
-from drf_yasg.views import get_schema_view
 from drf_yasg import openapi
+from drf_yasg.views import get_schema_view
+from rest_framework import permissions
+
+from exceptions.utils import custom404
 
 schema_view = get_schema_view(
     openapi.Info(
@@ -44,3 +45,5 @@ urlpatterns = [
     path('api/auth/', include('users.urls')),
     path('api-auth/', include('rest_framework.urls')),
 ]
+
+handler404 = custom404

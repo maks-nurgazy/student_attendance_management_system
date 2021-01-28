@@ -57,7 +57,7 @@ class AttendanceTest(APITestCase, URLPatternsTestCase):
         self.client = APIClient()
         self.client.credentials(HTTP_AUTHORIZATION='JWT ' + token)
 
-    def test_course_add(self):
+    def test_course_add_as_admin(self):
         pass
 
     def test_get_attendance(self):

@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ObjectDoesNotExist
+from django.http import Http404
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.generics import (
@@ -81,14 +82,23 @@ class CourseListView(GenericAPIView):
                 }
                 return Response(response, status=status.HTTP_400_BAD_REQUEST)
             serializer = serializer(data=data)
-            valid = serializer.is_valid(raise_exception=True)
+            valid = serializer.is_valid()
             if valid:
                 status_code = status.HTTP_200_OK
-                course = serializer.save()
+                serializer.save()
                 response = {
                     'success': True,
                     'statusCode': status_code,
-                    'message': 'Course added successfully'
+                    'message': 'Course added successfully',
+                    'course': serializer.data
+                }
+                return Response(response, status=status_code)
+            elif not valid:
+                status_code = status.HTTP_400_BAD_REQUEST
+                response = {
+                    'success': False,
+                    'statusCode': status_code,
+                    'message': serializer.errors
                 }
                 return Response(response, status=status_code)
             else:
@@ -96,7 +106,7 @@ class CourseListView(GenericAPIView):
                 response = {
                     'success': False,
                     'statusCode': status_code,
-                    'message': 'Error while serializing'
+                    'message': serializer.errors
                 }
                 return Response(response, status=status_code)
         else:
@@ -128,10 +138,35 @@ class CourseDetailView(RetrieveUpdateDestroyAPIView, APIException):
         try:
             obj = Course.objects.get(id=filter_kwargs)
         except ObjectDoesNotExist:
-            raise APIException('Course not exists')
+            raise Http404('Course not exists')
         # May raise a permission denied
         self.check_object_permissions(self.request, obj)
         return obj
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        status_code = status.HTTP_200_OK
+        response = {
+            'success': True,
+            'statusCode': status_code,
+            'message': 'Resource deleted successfully'
+        }
+        return Response(response, status=status_code)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', True)
+        instance = self.get_object()
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
 
 
 class TeachersCourseListView(GenericAPIView):
@@ -167,18 +202,22 @@ class AttendanceView(GenericAPIView):
 
         if user.role == 2 or user.role == 1:
             course_in_url = kwargs['course_name']
-            course = Course.objects.get(name=course_in_url)
-            attendances = course.attendances
-            serializer = self.get_serializer_class()
-            serializer = serializer(attendances, many=True)
-            status_code = status.HTTP_200_OK
-            response = {
-                'success': True,
-                'statusCode': status_code,
-                'message': 'Attendances fetched successfully',
-                'attendance': serializer.data
-            }
-            return Response(response, status=status_code)
+            try:
+                course = Course.objects.get(name=course_in_url)
+                attendances = course.attendances
+                serializer = self.get_serializer_class()
+                serializer = serializer(attendances, many=True)
+                status_code = status.HTTP_200_OK
+                response = {
+                    'success': True,
+                    'statusCode': status_code,
+                    'message': 'Attendances fetched successfully',
+                    'attendance': serializer.data
+                }
+                return Response(response, status=status_code)
+            except ObjectDoesNotExist:
+                raise Http404('Course not exists')
+
         else:
             response = {
                 'success': False,
@@ -225,36 +264,45 @@ class AttendanceDetailView(GenericAPIView):
     def get(self, request, *args, **kwargs):
         user = request.user
         if user.role == 1 or user.role == 2:
-            attendance_id = kwargs['attendance_id']
-            attendance = Attendance.objects.get(id=attendance_id)
-            serializer = self.serializer_class(attendance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            try:
+                attendance_id = kwargs['attendance_id']
+                attendance = Attendance.objects.get(id=attendance_id)
+                serializer = self.serializer_class(attendance)
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            except ObjectDoesNotExist:
+                raise Http404('Attendance not exists')
 
     def put(self, request, *args, **kwargs):
         user = request.user
         if user.role == 1 or user.role == 2:
-            attendance_id = kwargs['attendance_id']
-            attendance = Attendance.objects.get(id=attendance_id)
-            serializer = self.serializer_class(attendance, data=request.data)
-            valid = serializer.is_valid(raise_exception=True)
-            if valid:
-                serializer.save()
-                status_code = status.HTTP_200_OK
-                response = {
-                    'success': True,
-                    'statusCode': status_code,
-                    'message': 'Attendance updated successfully'
-                }
-                return Response(response, status=status_code)
+            try:
+                attendance_id = kwargs['attendance_id']
+                attendance = Attendance.objects.get(id=attendance_id)
+                serializer = self.serializer_class(attendance, data=request.data)
+                valid = serializer.is_valid(raise_exception=True)
+                if valid:
+                    serializer.save()
+                    status_code = status.HTTP_200_OK
+                    response = {
+                        'success': True,
+                        'statusCode': status_code,
+                        'message': 'Attendance updated successfully'
+                    }
+                    return Response(response, status=status_code)
+            except ObjectDoesNotExist:
+                raise Http404('Attendance not exists')
 
     def delete(self, request, *args, **kwargs):
-        attendance_id = kwargs['attendance_id']
-        attendance = Attendance.objects.get(id=attendance_id)
-        attendance.delete()
-        status_code = status.HTTP_200_OK
-        response = {
-            'success': True,
-            'statusCode': status_code,
-            'message': 'Attendance deleted successfully'
-        }
-        return Response(response, status=status_code)
+        try:
+            attendance_id = kwargs['attendance_id']
+            attendance = Attendance.objects.get(id=attendance_id)
+            attendance.delete()
+            status_code = status.HTTP_200_OK
+            response = {
+                'success': True,
+                'statusCode': status_code,
+                'message': 'Attendance deleted successfully'
+            }
+            return Response(response, status=status_code)
+        except ObjectDoesNotExist:
+            raise Http404('Attendance not exists')
