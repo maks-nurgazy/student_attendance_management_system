@@ -4,7 +4,7 @@ from users.models import User
 from .models import Course, Attendance, AttendanceReport
 
 
-class CourseUserSerializer(serializers.ModelSerializer):
+class CourseStudentSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField()
     email = serializers.EmailField()
 
@@ -25,7 +25,8 @@ class CourseUserSerializer(serializers.ModelSerializer):
 
 
 class AdminCourseSerializer(serializers.ModelSerializer):
-    students = CourseUserSerializer(many=True)
+    course_id = serializers.SerializerMethodField('get_course_id')
+    students = CourseStudentSerializer(many=True)
 
     def update(self, instance, validated_data):
         pass
@@ -42,11 +43,14 @@ class AdminCourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = (
-            'id',
+            'course_id',
             'name',
             'teacher',
             'students'
         )
+
+    def get_course_id(self, obj):
+        return obj.id
 
 
 class TeacherCourseSerializer(serializers.ModelSerializer):
@@ -63,7 +67,7 @@ class TeacherCourseSerializer(serializers.ModelSerializer):
 
     def get_course_students(self, obj):
         query_set = obj.students
-        return CourseUserSerializer(query_set, many=True).data
+        return CourseStudentSerializer(query_set, many=True).data
 
 
 class StudentCourseSerializer(serializers.ModelSerializer):
@@ -94,7 +98,7 @@ class AttendanceReportSerializer(serializers.ModelSerializer):
 
     def get_student(self, obj):
         query_set = obj.student
-        return CourseUserSerializer(query_set).data
+        return CourseStudentSerializer(query_set).data
 
     def get_status(self, obj):
         if obj.status:
@@ -124,6 +128,12 @@ class AttendanceSerializer(serializers.ModelSerializer):
     def get_teacher(self, obj):
         teacher = obj.course.teacher
         return f'{teacher.first_name} {teacher.email}'
+
+
+class CourseDetailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course
+        fields = ('name','teacher')
 
 
 class StrictBooleanField(serializers.BooleanField):

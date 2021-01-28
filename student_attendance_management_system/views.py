@@ -1,7 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import status
-from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.exceptions import APIException
+from rest_framework.generics import (
+    GenericAPIView, RetrieveUpdateDestroyAPIView
+)
+from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 
 from .models import Course, Attendance
@@ -10,7 +14,9 @@ from .serializers import (
     TeacherCourseSerializer,
     StudentCourseSerializer,
     AttendanceSerializer,
-    AttendancePostSerializer)
+    AttendancePostSerializer,
+    CourseDetailSerializer
+)
 
 User = get_user_model()
 
@@ -110,6 +116,22 @@ class CourseListView(GenericAPIView):
             return TeacherCourseSerializer
         elif user.role == 3:
             return StudentCourseSerializer
+
+
+class CourseDetailView(RetrieveUpdateDestroyAPIView, APIException):
+    queryset = User.objects.all()
+    serializer_class = CourseDetailSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        filter_kwargs = self.kwargs['id']
+        try:
+            obj = Course.objects.get(id=filter_kwargs)
+        except ObjectDoesNotExist:
+            raise APIException('Course not exists')
+        # May raise a permission denied
+        self.check_object_permissions(self.request, obj)
+        return obj
 
 
 class TeachersCourseListView(GenericAPIView):

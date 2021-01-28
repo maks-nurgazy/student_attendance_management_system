@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt.token_blacklist',
     'users',
+    'exceptions',
     'student_attendance_management_system',
     'drf_yasg',
 
@@ -136,6 +137,7 @@ REST_FRAMEWORK = {
         'rest_framework.authentication.SessionAuthentication',
         'rest_framework.authentication.BasicAuthentication'
     ),
+    'EXCEPTION_HANDLER': 'exceptions.utils.custom_exception_handler'
 }
 
 # Configure the JWT settings
