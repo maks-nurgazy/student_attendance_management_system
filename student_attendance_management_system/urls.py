@@ -7,7 +7,6 @@ from .views import (
     AttendanceDetailView,
 )
 
-
 urlpatterns = [
 
     path('courses/', CourseListView.as_view(), name='courses'),
