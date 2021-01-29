@@ -15,6 +15,10 @@ def custom_exception_handler(exc, context):
             "message": "Error",
             "status_code": response.status_code
         }
+        if response.status_code == 404:
+            data['message'] = "Not Found"
+        elif response.status_code == 401:
+            data['message'] = "Unauthorized"
         response.data = data
 
     return response

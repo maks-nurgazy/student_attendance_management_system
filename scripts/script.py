@@ -12,7 +12,10 @@ def get_token(data=None):
         data = {'email': 'admin@test.com', 'password': 'admin'}
     response = requests.request('post', login_url, data=data)
     response_obj = json.loads(response.text)
-    return response_obj['access']
+    try:
+        return response_obj['access']
+    except KeyError:
+        return response_obj['message']
 
 
 ###################################################
@@ -214,18 +217,34 @@ def attendance_detail_url(course_name, attendance_id):
 
 ####################################################
 
-def post_attendance_as_teacher(access_token, course_name):
+def post_attendance_with_student_id_as_teacher(access_token, course_name):
     data = {
         "date": "2050-10-31T11:30:00.511Z",
-        "course": 45,
+        "course": 'mathematics',
         "reports": [
             {
-                "student_id": "2",
+                "student_id": 2,
+                "status": "Present"
+            },
+            {
+                "student_id": 5,
                 "status": "Absent"
             },
             {
-                "student_id": "5",
+                "student_id": 6,
                 "status": "Absent"
+            },
+            {
+                "student_id": 7,
+                "status": "Absent"
+            },
+            {
+                "student_id": 8,
+                "status": True,
+            },
+            {
+                "student_id": 9,
+                "status": False,
             }
         ]
     }
@@ -238,14 +257,50 @@ def post_attendance_as_teacher(access_token, course_name):
     print(response.text)
 
 
-token = get_token(data={'email': 'teacher1@test.com', 'password': 'teacher'})
-post_attendance_as_teacher(token, 'mathematics')
+token = get_token(data={'email': 'teacher@test.com', 'password': 'teacher'})
+post_attendance_with_student_id_as_teacher(token, 'mathematics')
+
+
+def post_attendance_with_student_email_as_teacher(access_token, course_name):
+    data = {
+        "date": "2050-10-31T11:30:00.511Z",
+        "course": 2,
+        "reports": [
+            {
+                "status": "Present",
+                "email": "student@test.com"
+            },
+            {
+                "status": "Absent",
+                "email": "student2@test.com"
+            },
+            {
+                "status": True,
+                "email": "student3@test.com"
+            },
+            {
+                "status": False,
+                "email": "student4@test.com"
+            }
+        ]
+    }
+    headers = {
+        'Authorization': f'JWT {access_token}',
+        'Content-Type': 'application/json',
+    }
+    data = json.dumps(data)
+    response = requests.request('post', attendance_url(course_name), data=data, headers=headers)
+    print(response.text)
+
+
+# token = get_token(data={'email': 'teacher@test.com', 'password': 'teacher'})
+# post_attendance_with_student_email_as_teacher(token, 'mathematics')
 
 
 def update_attendance_as_teacher(access_token, course_name):
     data = {
         "date": "2050-10-31T11:30:00.511Z",
-        "course": 2,
+        "course": 12,
         "reports": [
             {
                 "student_id": "2",
@@ -275,7 +330,7 @@ def delete_attendance_as_teacher(access_token, attendance_id):
         'Authorization': f'JWT {access_token}',
         'Content-Type': 'application/json',
     }
-    response = requests.delete(attendance_url('Eders', attendance_id), headers=headers)
+    response = requests.delete(attendance_detail_url('Eders', attendance_id), headers=headers)
     print(response.text)
 
 # token = get_token(data={'email': 'teacher1@test.com', 'password': 'teacher'})

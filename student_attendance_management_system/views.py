@@ -14,9 +14,7 @@ from .serializers import (
     AdminCourseSerializer,
     TeacherCourseSerializer,
     StudentCourseSerializer,
-    AttendanceSerializer,
-    AttendancePostSerializer,
-    CourseDetailSerializer
+    CourseDetailSerializer, AttendanceSerializer
 )
 
 User = get_user_model()
@@ -189,8 +187,7 @@ class TeachersCourseListView(GenericAPIView):
 
 
 class AttendanceView(GenericAPIView):
-
-    # permission_classes = [IsAuthenticated | TeacherOnly]
+    serializer_class = AttendanceSerializer
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -207,8 +204,7 @@ class AttendanceView(GenericAPIView):
             try:
                 course = Course.objects.get(name=course_in_url)
                 attendances = course.attendances
-                serializer = self.get_serializer_class()
-                serializer = serializer(attendances, many=True)
+                serializer = self.serializer_class(attendances, many=True)
                 status_code = status.HTTP_200_OK
                 response = {
                     'success': True,
@@ -228,12 +224,11 @@ class AttendanceView(GenericAPIView):
             }
             return Response(response, status.HTTP_403_FORBIDDEN)
 
-    def post(self, request, course):
+    def post(self, request, course_name):
         user = request.user
         if user.role == 1 or user.role == 2:
-            serializer = self.get_serializer_class()
-            serializer = serializer(data=request.data)
-            valid = serializer.is_valid(raise_exception=True)
+            serializer = self.serializer_class(data=request.data)
+            valid = serializer.is_valid()
             if valid:
                 status_code = status.HTTP_200_OK
                 serializer.save()
@@ -241,6 +236,14 @@ class AttendanceView(GenericAPIView):
                     'success': True,
                     'statusCode': status_code,
                     'message': 'Attendance saved successfully'
+                }
+                return Response(response, status=status_code)
+            else:
+                status_code = status.HTTP_400_BAD_REQUEST
+                response = {
+                    'success': False,
+                    'statusCode': status_code,
+                    'message': serializer.errors
                 }
                 return Response(response, status=status_code)
         else:
@@ -252,16 +255,9 @@ class AttendanceView(GenericAPIView):
             }
             return Response(response, status=status_code)
 
-    def get_serializer_class(self):
-        if self.request.method == "GET":
-            return AttendanceSerializer
-
-        elif self.request.method == "POST":
-            return AttendancePostSerializer
-
 
 class AttendanceDetailView(GenericAPIView):
-    serializer_class = AttendancePostSerializer
+    serializer_class = AttendanceSerializer
 
     def get(self, request, *args, **kwargs):
         user = request.user
@@ -280,8 +276,8 @@ class AttendanceDetailView(GenericAPIView):
             try:
                 attendance_id = kwargs['attendance_id']
                 attendance = Attendance.objects.get(id=attendance_id)
-                serializer = self.serializer_class(attendance, data=request.data)
-                valid = serializer.is_valid(raise_exception=True)
+                serializer = self.serializer_class(attendance, data=request.data, partial=True)
+                valid = serializer.is_valid()
                 if valid:
                     serializer.save()
                     status_code = status.HTTP_200_OK
@@ -289,6 +285,14 @@ class AttendanceDetailView(GenericAPIView):
                         'success': True,
                         'statusCode': status_code,
                         'message': 'Attendance updated successfully'
+                    }
+                    return Response(response, status=status_code)
+                else:
+                    status_code = status.HTTP_400_BAD_REQUEST
+                    response = {
+                        'success': False,
+                        'statusCode': status_code,
+                        'message': serializer.errors
                     }
                     return Response(response, status=status_code)
             except ObjectDoesNotExist:
