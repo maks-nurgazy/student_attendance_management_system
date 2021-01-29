@@ -1,6 +1,7 @@
 from rest_framework import status
-from rest_framework.generics import GenericAPIView
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.exceptions import APIException
+from rest_framework.generics import GenericAPIView, RetrieveUpdateDestroyAPIView
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -99,3 +100,10 @@ class UserListView(GenericAPIView):
                 'users': serializer.data
             }
             return Response(response, status=status.HTTP_200_OK)
+
+
+class UserDetailView(RetrieveUpdateDestroyAPIView, APIException):
+    queryset = User.objects.all()
+    serializer_class = UserListSerializer
+    permission_classes = [IsAdminUser]
+    lookup_field = 'id'

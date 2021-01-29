@@ -5,15 +5,6 @@ import requests
 ENDPOINT = 'http://127.0.0.1:8000/api/'
 
 login_url = ENDPOINT + 'auth/login/'
-course_url = ENDPOINT + 'courses/'
-
-
-def course_detail_url(course_id):
-    return f'{course_url}{course_id}/'
-
-
-def attendance_url(subject, attendance_id):
-    return f'{ENDPOINT}{subject}/attendance/{attendance_id}'
 
 
 def get_token(data=None):
@@ -28,6 +19,18 @@ def get_token(data=None):
 #           Checking COURSE Model                 #
 ###################################################
 
+# Course URLS
+
+course_url = ENDPOINT + 'courses/'
+
+
+def course_detail_url(course_id):
+    return f'{course_url}{course_id}/'
+
+
+###################################################
+
+
 def add_course_all_as_admin(access_token):
     """ Adding a course with set Teacher and students as ADMIN"""
 
@@ -36,7 +39,7 @@ def add_course_all_as_admin(access_token):
         "teacher": 3,
         "students": [
             {
-                "email": "student3222@test.com",
+                "email": "student322222@test.com",
                 "first_name": "testStudent4",
                 "last_name": "Test4",
                 "password": "student"
@@ -150,18 +153,68 @@ def update_course_detail_as_admin(access_token, course_id):
 
 
 def update_course_students_as_admin(access_token, course_id):
-    pass
+    data = {
+        'students': [
+            {
+                "id": 6,
+                "first_name": "testStudent3",
+                "last_name": "Test3",
+                "email": "student3@test.com",
+                "role": 3
+            },
+            {
+                "id": 7,
+                "first_name": "testStudent4",
+                "last_name": "Test4",
+                "email": "student4@test.com",
+                "role": 3
+            },
+            {
+                "id": 8,
+                "first_name": "testStudent4",
+                "last_name": "Test4",
+                "email": "student5@test.com",
+                "role": 3
+            },
+            {
+                "id": 9,
+                "first_name": "testStudent4",
+                "last_name": "Test4",
+                "email": "student32@test.com",
+                "role": 3
+            },
+        ]
+    }
+    headers = {
+        'Authorization': f'JWT {access_token}',
+        'Content-Type': 'application/json'
+    }
+    data = json.dumps(data)
+    response = requests.request('put', course_detail_url(course_id), data=data, headers=headers)
+    print(response.text)
 
 
 # token = get_token(data={'email': 'admin@test.com', 'password': 'admin'})
-# update_course_detail_as_admin(token, 2)
+# update_course_students_as_admin(token, 2)
 
 
 ###################################################
 #           Checking ATTENDANCE Model             #
 ###################################################
 
-def update_attendance_as_teacher(access_token):
+# Attendance URLS
+
+def attendance_url(course_name):
+    return f'{ENDPOINT}{course_name}/attendance/'
+
+
+def attendance_detail_url(course_name, attendance_id):
+    return f'{ENDPOINT}{course_name}/attendance/{attendance_id}'
+
+
+####################################################
+
+def post_attendance_as_teacher(access_token, course_name):
     data = {
         "date": "2050-10-31T11:30:00.511Z",
         "course": 45,
@@ -181,12 +234,40 @@ def update_attendance_as_teacher(access_token):
         'Content-Type': 'application/json',
     }
     data = json.dumps(data)
-    response = requests.request('put', attendance_url('Eders', 2), data=data, headers=headers)
+    response = requests.request('post', attendance_url(course_name), data=data, headers=headers)
+    print(response.text)
+
+
+token = get_token(data={'email': 'teacher1@test.com', 'password': 'teacher'})
+post_attendance_as_teacher(token, 'mathematics')
+
+
+def update_attendance_as_teacher(access_token, course_name):
+    data = {
+        "date": "2050-10-31T11:30:00.511Z",
+        "course": 2,
+        "reports": [
+            {
+                "student_id": "2",
+                "status": "Absent"
+            },
+            {
+                "student_id": "5",
+                "status": "Absent"
+            }
+        ]
+    }
+    headers = {
+        'Authorization': f'JWT {access_token}',
+        'Content-Type': 'application/json',
+    }
+    data = json.dumps(data)
+    response = requests.request('put', attendance_detail_url(course_name, 2), data=data, headers=headers)
     print(response.text)
 
 
 # token = get_token(data={'email': 'teacher1@test.com', 'password': 'teacher'})
-# update_attendance_as_teacher(token)
+# update_attendance_as_teacher(token, 'mathematics')
 
 
 def delete_attendance_as_teacher(access_token, attendance_id):

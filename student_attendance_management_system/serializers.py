@@ -4,6 +4,33 @@ from users.models import User
 from .models import Course, Attendance, AttendanceReport
 
 
+def add_subject_student(student_list, course):
+    for student_obj in student_list:
+        try:
+            student_id = student_obj['id']
+            course.students.add(student_id)
+        except KeyError:
+            serializer = CourseStudentSerializer(data=student_obj)
+            valid = serializer.is_valid(raise_exception=True)
+            if valid:
+                student_email = serializer.save()
+                course.students.add(student_email)
+
+
+class StatusBooleanField(serializers.BooleanField):
+    def to_internal_value(self, value):
+        if value in ('true', 'Present', 'True', '1'):
+            return True
+        if value in ('false', 'Absent', 'False', '0'):
+            return False
+        self.fail('invalid', input=None)
+
+    def to_representation(self, value):
+        if value:
+            return "Present"
+        return "Absent"
+
+
 class CourseStudentSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
     password = serializers.CharField(max_length=128, write_only=True)
@@ -40,36 +67,6 @@ class AdminCourseSerializer(serializers.ModelSerializer):
     course_id = serializers.SerializerMethodField('get_course_id')
     students = CourseStudentSerializer(many=True, required=False)
 
-    def update(self, instance, validated_data):
-        pass
-
-    def create(self, validated_data):
-        student_list = validated_data.pop('students', None)
-        teacher_id = validated_data.pop('teacher', None)
-        if (student_list is not None) and (teacher_id is not None):
-            course = Course.objects.create(**validated_data, teacher=teacher_id)
-            self.add_subject_student(student_list=student_list, course=course)
-        elif (student_list is None) and (teacher_id is not None):
-            course = Course.objects.create(**validated_data, teacher=teacher_id)
-        elif (student_list is not None) and (teacher_id is None):
-            course = Course.objects.create(**validated_data)
-            self.add_subject_student(student_list=student_list, course=course)
-        else:
-            course = Course.objects.create(**validated_data)
-        return Course.objects.get(id=course.id)
-
-    def add_subject_student(self, student_list, course):
-        for student_obj in student_list:
-            try:
-                student_id = student_obj['id']
-                course.students.add(student_id)
-            except KeyError:
-                serializer = CourseStudentSerializer(data=student_obj)
-                valid = serializer.is_valid(raise_exception=True)
-                if valid:
-                    student_email = serializer.save()
-                    course.students.add(student_email)
-
     class Meta:
         model = Course
         fields = (
@@ -78,6 +75,24 @@ class AdminCourseSerializer(serializers.ModelSerializer):
             'teacher',
             'students'
         )
+
+    def update(self, instance, validated_data):
+        pass
+
+    def create(self, validated_data):
+        student_list = validated_data.pop('students', None)
+        teacher_id = validated_data.pop('teacher', None)
+        if (student_list is not None) and (teacher_id is not None):
+            course = Course.objects.create(**validated_data, teacher=teacher_id)
+            add_subject_student(student_list=student_list, course=course)
+        elif (student_list is None) and (teacher_id is not None):
+            course = Course.objects.create(**validated_data, teacher=teacher_id)
+        elif (student_list is not None) and (teacher_id is None):
+            course = Course.objects.create(**validated_data)
+            add_subject_student(student_list=student_list, course=course)
+        else:
+            course = Course.objects.create(**validated_data)
+        return Course.objects.get(id=course.id)
 
     def get_course_id(self, obj):
         return obj.id
@@ -108,6 +123,20 @@ class StudentCourseSerializer(serializers.ModelSerializer):
         fields = (
             'name',
         )
+
+
+class CourseDetailSerializer(serializers.ModelSerializer):
+    students = CourseStudentSerializer(many=True)
+
+    class Meta:
+        model = Course
+        fields = ('name', 'teacher', 'students')
+
+    def update(self, instance, validated_data):
+        student_list = validated_data.pop('students', None)
+        if student_list is not None:
+            add_subject_student(student_list=student_list, course=instance)
+        return instance
 
 
 class AttendanceReportSerializer(serializers.ModelSerializer):
@@ -160,31 +189,9 @@ class AttendanceSerializer(serializers.ModelSerializer):
         return f'{teacher.first_name} {teacher.email}'
 
 
-class CourseDetailSerializer(serializers.ModelSerializer):
-    students = CourseStudentSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Course
-        fields = ('name', 'teacher', 'students')
-
-
-class StrictBooleanField(serializers.BooleanField):
-    def to_internal_value(self, value):
-        if value in ('true', 'Present', 'True', '1'):
-            return True
-        if value in ('false', 'Absent', 'False', '0'):
-            return False
-        self.fail('invalid', input=None)
-
-    def to_representation(self, value):
-        if value:
-            return "Present"
-        return "Absent"
-
-
 class AttendanceReportPostSerializer(serializers.Serializer):
     student_id = serializers.CharField(max_length=30)
-    status = StrictBooleanField(required=True)
+    status = StatusBooleanField(required=True)
 
     def update(self, instance, validated_data):
         instance.status = validated_data.get('status', instance.status)
