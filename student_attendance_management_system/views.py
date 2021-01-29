@@ -224,10 +224,11 @@ class AttendanceView(GenericAPIView):
             }
             return Response(response, status.HTTP_403_FORBIDDEN)
 
-    def post(self, request, course_name):
+    def post(self, request, *args, **kwargs):
         user = request.user
         if user.role == 1 or user.role == 2:
-            serializer = self.serializer_class(data=request.data)
+            context = {'course_name': kwargs['course_name']}
+            serializer = self.serializer_class(data=request.data, context=context)
             valid = serializer.is_valid()
             if valid:
                 status_code = status.HTTP_200_OK
@@ -235,7 +236,8 @@ class AttendanceView(GenericAPIView):
                 response = {
                     'success': True,
                     'statusCode': status_code,
-                    'message': 'Attendance saved successfully'
+                    'message': 'Attendance saved successfully',
+                    'attendance': serializer.data
                 }
                 return Response(response, status=status_code)
             else:
@@ -275,8 +277,9 @@ class AttendanceDetailView(GenericAPIView):
         if user.role == 1 or user.role == 2:
             try:
                 attendance_id = kwargs['attendance_id']
+                context = {'course_name': kwargs['course_name']}
                 attendance = Attendance.objects.get(id=attendance_id)
-                serializer = self.serializer_class(attendance, data=request.data, partial=True)
+                serializer = self.serializer_class(attendance, data=request.data, context=context, partial=True)
                 valid = serializer.is_valid()
                 if valid:
                     serializer.save()
@@ -284,7 +287,8 @@ class AttendanceDetailView(GenericAPIView):
                     response = {
                         'success': True,
                         'statusCode': status_code,
-                        'message': 'Attendance updated successfully'
+                        'message': 'Attendance updated successfully',
+                        'attendance': serializer.data
                     }
                     return Response(response, status=status_code)
                 else:

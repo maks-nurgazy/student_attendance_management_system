@@ -60,6 +60,16 @@ class UserLoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("Invalid login credentials")
 
 
+class UserLogoutSerializer(serializers.Serializer):
+    refresh = serializers.CharField(read_only=True)
+
+    def create(self, validated_date):
+        pass
+
+    def update(self, instance, validated_data):
+        pass
+
+
 class UserListSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -70,4 +80,3 @@ class UserListSerializer(serializers.ModelSerializer):
             'email',
             'role',
         )
-

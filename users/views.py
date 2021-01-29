@@ -9,7 +9,7 @@ from .models import User
 from .serializers import (
     UserRegistrationSerializer,
     UserLoginSerializer,
-    UserListSerializer
+    UserListSerializer, UserLogoutSerializer
 )
 
 
@@ -65,6 +65,7 @@ class UserLoginView(GenericAPIView):
 class UserLogoutView(GenericAPIView):
     """ Do POST request with request data attribute set to refresh_token="token" """
     permission_classes = (IsAuthenticated,)
+    serializer_class = UserLogoutSerializer
 
     def post(self, request):
         try:

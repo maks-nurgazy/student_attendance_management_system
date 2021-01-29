@@ -1,6 +1,6 @@
-from abc import ABC
-
+from django.core.exceptions import ObjectDoesNotExist
 from rest_framework import serializers
+from rest_framework.exceptions import APIException
 
 from users.models import User
 from .models import Course, Attendance, AttendanceReport
@@ -184,22 +184,10 @@ class AttendanceReportSerializer(serializers.ModelSerializer):
         return CourseStudentSerializer(query_set).data
 
 
-class CoursePrimaryKeyRelatedField(serializers.RelatedField, ABC):
-    def to_representation(self, value):
-        return str(value)
-
-    def to_internal_value(self, data):
-        try:
-            data = int(data)
-            return Course.objects.get(id=data)
-        except ValueError:
-            return Course.objects.get(name=data)
-
-
 class AttendanceSerializer(serializers.ModelSerializer):
     reports = AttendanceReportSerializer(many=True)
     teacher = serializers.SerializerMethodField()
-    course = CoursePrimaryKeyRelatedField(queryset=Course.objects.all())
+    course = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
@@ -213,73 +201,32 @@ class AttendanceSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         report_list = validated_data.pop('reports')
-        attendance = Attendance.objects.create(**validated_data)
+        course = Course.objects.get(name=self.context.get('course_name'))
+        course_students = course.students
+        attendance = Attendance.objects.create(**validated_data, course=course)
         for student in report_list:
-            student_obj = User.objects.get(id=student['student_id'])
-            AttendanceReport.objects.create(attendance=attendance, student=student_obj, status=student['status'])
+            try:
+                student_obj = course_students.get(id=student['student_id'])
+                AttendanceReport.objects.create(attendance=attendance, student=student_obj, status=student['status'])
+            except ObjectDoesNotExist:
+                raise APIException(f'Student with id {student["student_id"]}, does not take this course', code=404)
         return attendance
 
     def update(self, instance, validated_data):
-        reports_data = validated_data.pop('reports', None)
+        reports_list = validated_data.pop('reports', None)
+        # course = Course.objects.get(name=self.context.get('course_name'))
+        # course_students = course.students
         instance.date = validated_data.get('date', instance.date)
-        instance.course = validated_data.get('course', instance.course)
         instance.save()
-
-        if reports_data is not None:
-            reports = instance.reports.all()
-            reports = list(reports)
-            for report_data in reports_data:
-                report = reports.pop(0)
-                report.status = report_data.get('status', report.status)
-                report.save()
-
+        for student_data in reports_list:
+            report = instance.reports.get(student=student_data['student_id'])
+            report.status = student_data['status']
+            report.save()
         return instance
 
     def get_teacher(self, obj):
         teacher = obj.course.teacher
         return CourseTeacherSerializer(teacher).data
 
-# class AttendancePostSerializer(serializers.ModelSerializer):
-#     reports = AttendanceReportPostSerializer(many=True)
-#     course = serializers.PrimaryKeyRelatedField(queryset=Course.objects.all())
-#
-#     class Meta:
-#         model = Attendance
-#         fields = (
-#             'id',
-#             'date',
-#             'course',
-#             'reports'
-#         )
-#
-#     def update(self, instance, validated_data):
-#         reports_data = validated_data.pop('reports')
-#         reports = instance.reports.all()
-#         reports = list(reports)
-#         instance.date = validated_data.get('date', instance.date)
-#         instance.course = validated_data.get('course', instance.course)
-#         instance.save()
-#         for report_data in reports_data:
-#             report = reports.pop(0)
-#             report.status = report_data.get('status', report.status)
-#             report.save()
-#         return instance
-#
-#     def create(self, validated_data):
-#         report_list = validated_data.pop('reports')
-#         attendance = Attendance.objects.create(**validated_data)
-#         for student in report_list:
-#             student_obj = User.objects.get(id=student['student_id'])
-#             AttendanceReport.objects.create(attendance=attendance, student=student_obj, status=student['status'])
-#         return attendance
-
-# class AttendanceReportPostSerializer(serializers.Serializer):
-#     student_id = serializers.CharField(max_length=30)
-#     status = StatusBooleanField(required=True)
-#
-#     def update(self, instance, validated_data):
-#         instance.status = validated_data.get('status', instance.status)
-#         return instance
-#
-#     def create(self, validated_data):
-#         pass
+    def get_course(self, obj):
+        return obj.course.name
