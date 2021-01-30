@@ -4,7 +4,9 @@ from django.http import Http404
 from rest_framework import status
 from rest_framework.exceptions import APIException
 from rest_framework.generics import (
-    GenericAPIView, RetrieveUpdateDestroyAPIView
+    GenericAPIView,
+    RetrieveUpdateDestroyAPIView,
+    ListCreateAPIView
 )
 from rest_framework.permissions import IsAuthenticated, IsAdminUser
 from rest_framework.response import Response
@@ -14,7 +16,10 @@ from .serializers import (
     AdminCourseSerializer,
     TeacherCourseSerializer,
     StudentCourseSerializer,
-    CourseDetailSerializer, AttendanceSerializer
+    CourseDetailSerializer,
+    AttendanceSerializer,
+    TeacherSerializer,
+    StudentSerializer
 )
 
 User = get_user_model()
@@ -160,13 +165,79 @@ class CourseDetailView(RetrieveUpdateDestroyAPIView, APIException):
         if not valid:
             return Response(serializer.errors)
         self.perform_update(serializer)
-
         if getattr(instance, '_prefetched_objects_cache', None):
             # If 'prefetch_related' has been applied to a queryset, we need to
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
         return Response(serializer.data)
+
+
+class TeacherListView(ListCreateAPIView):
+    serializer_class = TeacherSerializer
+    permission_classes = [IsAdminUser]
+    queryset = User.objects.filter(role=2)
+
+
+class TeacherDetailView(RetrieveUpdateDestroyAPIView, APIException):
+    queryset = User.objects.all()
+    serializer_class = TeacherSerializer
+    permission_classes = [IsAdminUser]
+
+    def get_object(self):
+        filter_kwargs = self.kwargs['teacher_id']
+        try:
+            obj = User.objects.get(id=filter_kwargs)
+        except ObjectDoesNotExist:
+            raise Http404('Teacher not exists')
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        status_code = status.HTTP_200_OK
+        response = {
+            'success': True,
+            'statusCode': status_code,
+            'message': 'Resource deleted successfully'
+        }
+        return Response(response, status=status_code)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', True)
+        instance = self.get_object()
+        context = {"request": request}
+        serializer = self.get_serializer(instance, data=request.data, context=context, partial=partial)
+        valid = serializer.is_valid()
+        if not valid:
+            return Response(serializer.errors)
+        self.perform_update(serializer)
+        if getattr(instance, '_prefetched_objects_cache', None):
+            # If 'prefetch_related' has been applied to a queryset, we need to
+            # forcibly invalidate the prefetch cache on the instance.
+            instance._prefetched_objects_cache = {}
+
+        return Response(serializer.data)
+
+
+class StudentListView(ListCreateAPIView):
+    serializer_class = StudentSerializer
+    permission_classes = [IsAdminUser]
+    queryset = User.objects.filter(role=3)
+
+
+class StudentDetailView(TeacherDetailView):
+    serializer_class = StudentSerializer
+
+    def get_object(self):
+        filter_kwargs = self.kwargs['student_id']
+        try:
+            obj = User.objects.get(id=filter_kwargs)
+        except ObjectDoesNotExist:
+            raise Http404('Student not exists')
+        self.check_object_permissions(self.request, obj)
+        return obj
 
 
 class TeachersCourseListView(GenericAPIView):
@@ -184,6 +255,82 @@ class TeachersCourseListView(GenericAPIView):
             'courses': serializer.data
         }
         return Response(response, status=status.HTTP_200_OK)
+
+
+class StudentsCourseListView(RetrieveUpdateDestroyAPIView):
+    permission_classes = (IsAuthenticated,)
+    serializer_class = StudentCourseSerializer
+
+    def get(self, request, *args, **kwargs):
+        courses = self.get_object().student_courses
+        serializer = self.serializer_class(courses, many=True)
+        response = {
+            'success': True,
+            'status_code': status.HTTP_200_OK,
+            'message': 'Successfully fetched courses',
+            'courses': serializer.data
+        }
+        return Response(response, status=status.HTTP_200_OK)
+
+    def get_object(self):
+        filter_kwargs = self.kwargs['student_id']
+        try:
+            obj = User.objects.get(id=filter_kwargs)
+        except ObjectDoesNotExist:
+            raise Http404('Student not exists')
+        self.check_object_permissions(self.request, obj)
+        return obj
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 1 or (user == 3 and user.id == self.kwargs['student_id']):
+            instance = self.get_object()
+            serializer = self.get_serializer(instance, data=request.data)
+            valid = serializer.is_valid()
+            if not valid:
+                return Response(serializer.errors)
+            self.perform_update(serializer)
+            if getattr(instance, '_prefetched_objects_cache', None):
+                # If 'prefetch_related' has been applied to a queryset, we need to
+                # forcibly invalidate the prefetch cache on the instance.
+                instance._prefetched_objects_cache = {}
+
+            status_code = status.HTTP_200_OK
+            response = {
+                'success': True,
+                'statusCode': status_code,
+                'message': 'Update successful'
+            }
+            return Response(response)
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                'success': False,
+                'statusCode': status_code,
+                'message': 'Unauthorized'
+            }
+            return Response(response, status=status_code)
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+        if user.role == 1 or (user == 3 and user.id == self.kwargs['student_id']):
+            instance = self.get_object()
+            instance.student_courses.clear()
+            status_code = status.HTTP_200_OK
+            response = {
+                'success': True,
+                'statusCode': status_code,
+                'message': 'Delete successful'
+            }
+            return Response(response)
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = {
+                'success': False,
+                'statusCode': status_code,
+                'message': 'Unauthorized'
+            }
+            return Response(response, status=status_code)
 
 
 class AttendanceView(GenericAPIView):
@@ -227,7 +374,7 @@ class AttendanceView(GenericAPIView):
     def post(self, request, *args, **kwargs):
         user = request.user
         if user.role == 1 or user.role == 2:
-            context = {'course_name': kwargs['course_name']}
+            context = {'course_name': kwargs['course_name'], 'user': request.user}
             serializer = self.serializer_class(data=request.data, context=context)
             valid = serializer.is_valid()
             if valid:

@@ -19,12 +19,19 @@ def custom_exception_handler(exc, context):
             data['message'] = "Not Found"
         elif response.status_code == 401:
             data['message'] = "Unauthorized"
-        else:
-            obj = response.data['detail']
-            data['message'] = str(exc)
-            response.status_code = obj.code
-            data['status_code'] = obj.code
-        response.data = data
+        # else:
+        #     dict_response = response.data
+        #     key = list(dict_response.keys())[0]
+        #     print(dict_response)
+        #     obj = dict_response[key]
+        #     data['message'] = str(exc)
+        #     if obj.code == 'method_not_allowed':
+        #         data['status_code'] = 405
+        #         response.status_code = 405
+        #     else:
+        #         data['status_code'] = obj.code
+        #         response.status_code = obj.code
+        # response.data = data
     return response
 
 

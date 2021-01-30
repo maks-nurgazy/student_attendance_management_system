@@ -32,3 +32,7 @@ class CustomUserManager(BaseUserManager):
     def create_student(self, email, password, **extra_fields):
         extra_fields.setdefault('role', 3)
         return self.create_user(email, password, **extra_fields)
+
+    def create_teacher(self, email, password, **extra_fields):
+        extra_fields.setdefault('role', 2)
+        return self.create_user(email, password, **extra_fields)

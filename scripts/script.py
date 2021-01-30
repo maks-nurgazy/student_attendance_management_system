@@ -183,7 +183,7 @@ def update_course_students_as_admin(access_token, course_id):
                 "id": 9,
                 "first_name": "testStudent4",
                 "last_name": "Test4",
-                "email": "student32@test.com",
+                "email": "student322232@test.com",
                 "role": 3
             },
         ]
@@ -313,8 +313,8 @@ def update_attendance_with_student_id_as_teacher(access_token, course_name, atte
     print(response.text)
 
 
-token = get_token(data={'email': 'teacher@test.com', 'password': 'teacher'})
-update_attendance_with_student_id_as_teacher(token, 'mathematics', 8)
+# token = get_token(data={'email': 'teacher@test.com', 'password': 'teacher'})
+# update_attendance_with_student_id_as_teacher(token, 'mathematics', 8)
 
 
 def delete_attendance_as_teacher(access_token, attendance_id):
